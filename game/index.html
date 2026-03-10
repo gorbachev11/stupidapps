@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simeon Stylites — Desert Service Prototype</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="hud">
+    <div id="meters" class="panel">
+      <div class="meter-row"><span>Thirst</span><div class="bar"><div id="thirstBar"></div></div><span id="thirstTxt">0%</span></div>
+      <div class="meter-row"><span>Hunger</span><div class="bar"><div id="hungerBar"></div></div><span id="hungerTxt">0%</span></div>
+      <div class="meter-row"><span>Spiritual Peace</span><div class="bar"><div id="peaceBar"></div></div><span id="peaceTxt">100%</span></div>
+      <div class="meter-row"><span>Wellbeing</span><div class="bar"><div id="wellBar"></div></div><span id="wellTxt">100%</span></div>
+      <div id="weatherTxt">Weather: Clear</div>
+    </div>
+
+    <div id="crosshair">+</div>
+    <div id="hoverInfo" class="panel">Look at an object</div>
+
+    <div id="message" class="panel"></div>
+
+    <div id="sackWrap" class="panel">
+      <div id="sackTitle">Front Sack (drag small items here)</div>
+      <div id="sack"></div>
+      <button id="dumpBtn">Dump Sack To Ground</button>
+      <button id="deliverBtn">Offer To Bucket</button>
+    </div>
+
+    <div id="editorPanel" class="panel hidden">
+      <strong>Prefab Editor</strong>
+      <div id="editorInfo"></div>
+      <div>Move: I/J/K/L/U/O | Scale: +/- | N: add frond | S: save | `: exit</div>
+    </div>
+  </div>
+
+  <div id="startOverlay">
+    <h1>Simeon Stylites — Low Poly Service Loop</h1>
+    <p>Click to start. WASD move, mouse look, Space jump, E interact / pick / drop.</p>
+    <p>Hold ` (backtick) for 1 sec near a palm/pampas/cactus to open prefab editor.</p>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+html, body {
+  margin: 0;
+  overflow: hidden;
+  font-family: Inter, Arial, sans-serif;
+  background: #000;
+}
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: #fff;
+}
+.panel {
+  background: rgba(0,0,0,0.58);
+  border: 1px solid rgba(255,255,255,0.35);
+  backdrop-filter: blur(4px);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+#meters {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  width: 360px;
+}
+.meter-row {
+  display: grid;
+  grid-template-columns: 104px 1fr 58px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.bar { height: 12px; background: rgba(255,255,255,.2); border-radius: 6px; overflow: hidden; }
+.bar > div { height: 100%; background: linear-gradient(90deg, #f1c65f, #7ecbff); width: 0%; }
+#peaceBar { background: linear-gradient(90deg, #e07be0,#91e6a3); }
+#wellBar { background: linear-gradient(90deg, #ff8c76,#8ff5c2); }
+#crosshair {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  font-size: 25px; font-weight: 700; text-shadow: 0 0 8px #000;
+}
+#hoverInfo { position: fixed; left: 50%; bottom: 124px; transform: translateX(-50%); min-width: 260px; text-align: center; }
+#message { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); min-width: 420px; text-align: center; }
+#sackWrap { position: fixed; right: 12px; bottom: 12px; width: 300px; pointer-events: auto; }
+#sack { min-height: 56px; border: 2px dashed rgba(255,255,255,0.5); border-radius: 8px; padding: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+.sackItem { background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; padding: 3px 6px; font-size: 12px; }
+#startOverlay {
+  position: fixed; inset: 0; display: grid; place-content: center; text-align: center;
+  color: #fff; background: rgba(0,0,0,0.8); z-index: 5;
+}
+.hidden { display: none; }
+#editorPanel { position: fixed; left: 50%; top: 90px; transform: translateX(-50%); width: 520px; text-align:center; }
+button { margin-top: 8px; margin-right: 8px; }
