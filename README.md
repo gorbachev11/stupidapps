@@ -1,6 +1,13 @@
 # Stupid Apps
 
-This repository includes a standalone browser prototype:
+This repository includes standalone browser prototypes:
+
+## Fastest option (single HTML download/run)
+
+You can run a fully self-contained version with no server and no install:
+
+- File: `game/simeon_stylites_game.html`
+- Just open it directly in a browser (double-click).
 
 ## Simeon Stylites — Low Poly Desert Service Game (prototype)
 

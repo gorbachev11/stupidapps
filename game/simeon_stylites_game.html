@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simeon Stylites Game (Standalone HTML)</title>
+  <style>
+    :root { --panel: rgba(10, 10, 10, 0.7); --border: rgba(255,255,255,.25); }
+    html,body { margin:0; height:100%; background:#14110e; color:#f5ead8; font-family:Inter,system-ui,Segoe UI,Arial,sans-serif; }
+    #wrap { position:fixed; inset:0; display:grid; place-items:center; }
+    canvas { width:min(96vw,1100px); height:min(82vh,700px); border:1px solid #7d684a; background:#2f271f; box-shadow:0 10px 34px rgba(0,0,0,.5); }
+    .hud { position:fixed; pointer-events:none; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:.5rem .7rem; backdrop-filter: blur(3px); }
+    #meters { top:10px; left:10px; width:360px; }
+    .row { display:grid; grid-template-columns:120px 1fr 56px; gap:.5rem; margin:.25rem 0; align-items:center; font-size:.85rem; }
+    .bar { height:11px; border-radius:6px; background:#47392b; overflow:hidden; }
+    .fill { height:100%; background:linear-gradient(90deg,#f5c36e,#91ccff); width:0%; }
+    #peace.fill { background:linear-gradient(90deg,#de95ed,#8af0a2); }
+    #well.fill { background:linear-gradient(90deg,#ff9377,#89e7c7); }
+    #info { left:50%; bottom:14px; transform:translateX(-50%); min-width:360px; text-align:center; }
+    #status { top:10px; right:10px; min-width:320px; }
+    #start { position:fixed; inset:0; display:grid; place-content:center; gap:.7rem; text-align:center; background:rgba(0,0,0,.78); z-index:5; }
+    button { border:1px solid #c2aa84; background:#3e3123; color:#f9efd9; border-radius:8px; padding:.55rem .9rem; cursor:pointer; }
+    kbd { background:#2a221b; border:1px solid #665340; border-radius:4px; padding:1px 5px; }
+  </style>
+</head>
+<body>
+  <div id="wrap"><canvas id="game" width="1100" height="700"></canvas></div>
+
+  <div id="meters" class="hud panel">
+    <div class="row"><span>Thirst</span><div class="bar"><div class="fill" id="thirst"></div></div><span id="thirstTxt">0%</span></div>
+    <div class="row"><span>Hunger</span><div class="bar"><div class="fill" id="hunger"></div></div><span id="hungerTxt">0%</span></div>
+    <div class="row"><span>Spiritual Peace</span><div class="bar"><div class="fill" id="peace"></div></div><span id="peaceTxt">100%</span></div>
+    <div class="row"><span>Wellbeing</span><div class="bar"><div class="fill" id="well"></div></div><span id="wellTxt">100%</span></div>
+  </div>
+
+  <div id="status" class="hud panel">
+    <div id="weatherTxt">Weather: Clear</div>
+    <div id="sackTxt">Sack: empty</div>
+    <div id="msg">Explore quietly and aid only when needed.</div>
+  </div>
+
+  <div id="info" class="hud panel">Move with <kbd>WASD</kbd>/<kbd>Arrows</kbd>. Press <kbd>E</kbd> near resources or bucket.</div>
+
+  <div id="start">
+    <h1>Simeon Stylites — Practical HTML Game</h1>
+    <div>Standalone single-file game: you can download and open this HTML directly.</div>
+    <div>Loop: gather water/food, avoid over-interrupting Simeon, deliver to bucket at tower hill.</div>
+    <div><button id="startBtn">Start Game</button></div>
+  </div>
+
+  <script>
+  (() => {
+    const c = document.getElementById('game');
+    const ctx = c.getContext('2d');
+    const W = c.width, H = c.height;
+    const center = {x: W*0.5, y: H*0.52};
+    const ui = {
+      thirst: byId('thirst'), hunger: byId('hunger'), peace: byId('peace'), well: byId('well'),
+      thirstTxt: byId('thirstTxt'), hungerTxt: byId('hungerTxt'), peaceTxt: byId('peaceTxt'), wellTxt: byId('wellTxt'),
+      weatherTxt: byId('weatherTxt'), sackTxt: byId('sackTxt'), msg: byId('msg'), info: byId('info'), start: byId('start')
+    };
+
+    const state = {
+      started: false,
+      player: {x: center.x + 120, y: center.y + 150, r: 12, speed: 170},
+      meters: {thirst: 14, hunger: 8, peace: 93, wellbeing: 97},
+      sack: {water: 0, food: 0},
+      day: 0.21,
+      weather: 'clear', weatherTimer: 18,
+      messageTimer: 0,
+      quotes: [
+        '"Keep watch over your heart before all labor." — attributed in later Simeon traditions',
+        '"Endure little hardship willingly, and prayer grows steady." — ascetic tradition',
+        '"Be silent often, and your spirit is less scattered." — attributed saying'
+      ],
+      items: [],
+      keys: new Set(),
+    };
+
+    const zones = {
+      tower: {x:center.x, y:center.y-95, r:90},
+      bucket: {x:center.x, y:center.y-55, r:18},
+      creek: {x:center.x-320, y:center.y+40, w:140, h:230},
+      cave: {x:center.x+330, y:center.y+170, r:70},
+    };
+
+    seedItems();
+    render(0);
+    updateHUD();
+
+    byId('startBtn').onclick = () => { state.started = true; ui.start.style.display='none'; tell('Listen, observe, and act sparingly.'); last = performance.now(); requestAnimationFrame(loop); };
+    addEventListener('keydown', e => { state.keys.add(e.key.toLowerCase()); if (e.key.toLowerCase()==='e') interact(); });
+    addEventListener('keyup', e => state.keys.delete(e.key.toLowerCase()));
+
+    let last = 0;
+    function loop(ts) {
+      const dt = Math.min(0.033, (ts-last)/1000); last = ts;
+      update(dt); render(ts/1000); requestAnimationFrame(loop);
+    }
+
+    function update(dt){
+      movePlayer(dt); tickWeather(dt); tickMeters(dt); regenerate(dt); checkHover();
+      if (state.messageTimer>0) state.messageTimer -= dt;
+      updateHUD();
+    }
+
+    function movePlayer(dt){
+      const k = state.keys;
+      let dx = 0, dy = 0;
+      if (k.has('w')||k.has('arrowup')) dy -= 1;
+      if (k.has('s')||k.has('arrowdown')) dy += 1;
+      if (k.has('a')||k.has('arrowleft')) dx -= 1;
+      if (k.has('d')||k.has('arrowright')) dx += 1;
+      if (!dx && !dy) return;
+      const len = Math.hypot(dx,dy); dx/=len; dy/=len;
+      let speed = state.player.speed;
+      if (inDust()) speed *= 0.56;
+      state.player.x = clamp(state.player.x + dx*speed*dt, 28, W-28);
+      state.player.y = clamp(state.player.y + dy*speed*dt, 28, H-28);
+    }
+
+    function tickWeather(dt){
+      state.day = (state.day + dt*0.01) % 1;
+      state.weatherTimer -= dt;
+      if (state.weatherTimer <= 0){
+        state.weather = pick(['clear','scorching','rain','dust','night']);
+        state.weatherTimer = rnd(18,34);
+      }
+    }
+
+    function tickMeters(dt){
+      const w = weatherMods(state.weather);
+      state.meters.thirst = clamp(state.meters.thirst + dt*1.52*w.thirst, 0, 100);
+      state.meters.hunger = clamp(state.meters.hunger + dt*0.58, 0, 100);
+      state.meters.peace = clamp(state.meters.peace + dt*0.08, 0, 100);
+      const deficit = state.meters.thirst*0.45 + state.meters.hunger*0.29 + (100-state.meters.peace)*0.20;
+      state.meters.wellbeing = clamp(100-deficit, 0, 100);
+      if (state.meters.thirst>85 && state.meters.hunger>75) state.meters.wellbeing = clamp(state.meters.wellbeing-dt*1.4,0,100);
+    }
+
+    function regenerate(dt){
+      for (const it of state.items) {
+        if (!it.taken) continue;
+        it.respawn -= dt;
+        if (it.respawn <= 0){
+          const fresh = randomItem(it.type);
+          it.x=fresh.x; it.y=fresh.y; it.taken=false;
+        }
+      }
+    }
+
+    function checkHover(){
+      const near = nearestItem();
+      if (dist(state.player, zones.bucket) < 30) ui.info.textContent = 'Bucket — Press E to offer sack items to Simeon.';
+      else if (near && dist(state.player, near) < 26) ui.info.textContent = `${near.label} — Press E to collect.`;
+      else ui.info.textContent = 'Move with WASD/Arrows. Press E near resources or bucket.';
+    }
+
+    function interact(){
+      if (!state.started) return;
+      if (dist(state.player, zones.bucket) < 30) return deliver();
+      const near = nearestItem();
+      if (near && dist(state.player, near) < 26 && !near.taken){
+        near.taken = true; near.respawn = rnd(14,24);
+        state.sack[near.type]++;
+        tell(`${near.label} stored in your front sack.`);
+      }
+    }
+
+    function deliver(){
+      const needWater = state.weather !== 'rain' && state.meters.thirst > 54;
+      const needFood = state.meters.hunger > 56;
+      const useful = (needWater && state.sack.water>0) || (needFood && state.sack.food>0);
+      state.meters.peace = clamp(state.meters.peace - (useful ? 2 : 9), 0, 100);
+
+      if (needWater && state.sack.water>0){ state.sack.water--; state.meters.thirst = clamp(state.meters.thirst-38,0,100); }
+      if (needFood && state.sack.food>0){ state.sack.food--; state.meters.hunger = clamp(state.meters.hunger-32,0,100); }
+
+      if (useful) tell(`Bucket raised to Simeon. ${pick(state.quotes)}`);
+      else tell('You interrupted without need. Spiritual peace declines.');
+    }
+
+    function render(t){
+      const sky = skyColor();
+      ctx.fillStyle = sky; ctx.fillRect(0,0,W,H);
+      drawDesert(); drawZones(t); drawItems(); drawTower(); drawPlayer(); drawWeatherFx(t);
+    }
+
+    function drawDesert(){
+      ctx.fillStyle = '#b68f58'; ctx.fillRect(0,H*0.48,W,H*0.52);
+      for (let i=0;i<14;i++) {
+        ctx.fillStyle = i%2 ? 'rgba(110,86,55,.25)' : 'rgba(84,62,39,.20)';
+        ctx.beginPath(); ctx.ellipse((i*95 + 80)%W, H*0.64 + Math.sin(i*1.5)*18, 120, 26, 0,0,Math.PI*2); ctx.fill();
+      }
+    }
+
+    function drawZones(t){
+      // tower hill
+      ctx.fillStyle = '#7e6c4f';
+      ctx.beginPath(); ctx.arc(zones.tower.x, zones.tower.y, zones.tower.r, 0, Math.PI*2); ctx.fill();
+      // canyon + creek
+      ctx.fillStyle = '#5d4934'; ctx.fillRect(zones.creek.x-32, zones.creek.y-22, zones.creek.w+70, zones.creek.h+40);
+      ctx.fillStyle = 'rgba(74,160,192,.65)';
+      ctx.fillRect(zones.creek.x, zones.creek.y + Math.sin(t*2)*3, zones.creek.w, zones.creek.h);
+      // cave
+      ctx.fillStyle = '#4b3b2e'; ctx.beginPath(); ctx.arc(zones.cave.x, zones.cave.y, zones.cave.r, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#0f0e10'; ctx.beginPath(); ctx.ellipse(zones.cave.x+8, zones.cave.y+6, 34, 22, 0, 0, Math.PI*2); ctx.fill();
+    }
+
+    function drawTower(){
+      ctx.fillStyle = '#c7b08f'; ctx.fillRect(zones.tower.x-26, zones.tower.y-118, 52, 126);
+      ctx.fillStyle = '#8f7252'; ctx.fillRect(zones.bucket.x-12, zones.bucket.y-8, 24, 16);
+      ctx.fillStyle = '#e8dcc8';
+      ctx.font = '12px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('Tower / Bucket', zones.tower.x, zones.tower.y-126);
+    }
+
+    function drawItems(){
+      for (const it of state.items){
+        if (it.taken) continue;
+        ctx.fillStyle = it.type==='water' ? '#68b6d7' : '#d4a16b';
+        ctx.beginPath(); ctx.arc(it.x,it.y,8,0,Math.PI*2); ctx.fill();
+      }
+    }
+
+    function drawPlayer(){
+      ctx.fillStyle='#efe1c5'; ctx.beginPath(); ctx.arc(state.player.x,state.player.y,state.player.r,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#3f3124'; ctx.fillRect(state.player.x-7,state.player.y+8,14,7);
+    }
+
+    function drawWeatherFx(t){
+      if (state.weather==='night') { ctx.fillStyle='rgba(15,22,38,.42)'; ctx.fillRect(0,0,W,H); }
+      if (state.weather==='rain') {
+        ctx.strokeStyle='rgba(180,220,255,.4)'; ctx.lineWidth=1;
+        for(let i=0;i<130;i++){ const x=(i*87 + t*290)%W; const y=(i*39 + t*450)%H; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-4,y+12); ctx.stroke(); }
+      }
+      if (state.weather==='dust') {
+        ctx.fillStyle='rgba(204,162,95,.35)'; ctx.fillRect(0,0,W,H);
+        for(let i=0;i<80;i++){ ctx.fillStyle='rgba(180,130,70,.18)'; ctx.beginPath(); ctx.arc((i*71+t*80)%W,(i*29+t*35)%H, rnd(2,5),0,Math.PI*2); ctx.fill(); }
+      }
+      if (state.weather==='scorching') { ctx.fillStyle='rgba(255,164,58,.13)'; ctx.fillRect(0,0,W,H); }
+    }
+
+    function updateHUD(){
+      setBar('thirst', state.meters.thirst); setBar('hunger', state.meters.hunger); setBar('peace', state.meters.peace); setBar('well', state.meters.wellbeing);
+      ui.thirstTxt.textContent = `${state.meters.thirst.toFixed(0)}%`;
+      ui.hungerTxt.textContent = `${state.meters.hunger.toFixed(0)}%`;
+      ui.peaceTxt.textContent = `${state.meters.peace.toFixed(0)}%`;
+      ui.wellTxt.textContent = `${state.meters.wellbeing.toFixed(0)}%`;
+      ui.weatherTxt.textContent = `Weather: ${cap(state.weather)}`;
+      ui.sackTxt.textContent = `Sack: ${state.sack.food} food, ${state.sack.water} water`;
+      if (state.messageTimer<=0) ui.msg.textContent = 'Explore quietly and help when truly needed.';
+    }
+
+    function setBar(id,val){ byId(id).style.width = `${val}%`; }
+    function seedItems(){ for(let i=0;i<18;i++) state.items.push(randomItem('food')); for(let i=0;i<14;i++) state.items.push(randomItem('water')); }
+    function randomItem(type){
+      if (type==='water') return {type,label:'Water Vessel',x:rnd(zones.creek.x+10,zones.creek.x+zones.creek.w-10),y:rnd(zones.creek.y+10,zones.creek.y+zones.creek.h-10),taken:false,respawn:0};
+      const fromCave = Math.random()<0.24;
+      return {type,label:'Dry Food Bundle',x: fromCave ? rnd(zones.cave.x-50,zones.cave.x+30) : rnd(80,W-80), y: fromCave ? rnd(zones.cave.y-40,zones.cave.y+20) : rnd(90,H-80), taken:false, respawn:0};
+    }
+
+    function nearestItem(){
+      let best=null, bd=1e9;
+      for(const it of state.items){ if(it.taken) continue; const d = dist(state.player,it); if(d<bd){bd=d;best=it;} }
+      return best;
+    }
+    function weatherMods(w){ return ({clear:{thirst:1}, scorching:{thirst:2.5}, rain:{thirst:.24}, dust:{thirst:1.9}, night:{thirst:.6}})[w]; }
+    function inDust(){ return state.weather==='dust'; }
+    function skyColor(){
+      const l = 0.55 + Math.sin(state.day*Math.PI*2)*0.2;
+      if (state.weather==='night') return `rgba(${30*l|0},${35*l|0},${58*l|0},1)`;
+      return `rgba(${150*l|0},${125*l|0},${92*l|0},1)`;
+    }
+
+    function tell(m){ ui.msg.textContent = m; state.messageTimer = 5; }
+    function byId(id){ return document.getElementById(id); }
+    function rnd(a,b){ return a + Math.random()*(b-a); }
+    function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+    function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+    function cap(s){ return s[0].toUpperCase()+s.slice(1); }
+    function dist(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); }
+  })();
+  </script>
+</body>
+</html>
